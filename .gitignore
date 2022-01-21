@@ -1,0 +1,16 @@
+# OS files
+.DS_Store
+
+# VSCode 
+.vscode/*
+
+# Python
+.pytest_cache/*
+mdtedit/__pycache__
+tests/__pycache__
+
+# Virtual environments
+env/*
+
+# Folders
+examples/*
