@@ -1,4 +1,5 @@
 import unittest
+
 from mdtedit.main import *
 
 class TestMain(unittest.TestCase):
@@ -16,7 +17,7 @@ class TestMain(unittest.TestCase):
         ]
         
         for i, case in enumerate(test_cases):
-            result = remove_extra_whitespaces(case)
+            result = MDTEdit(case).remove_extra_whitespaces()
             self.assertEquals(result, expected[i])
     
     def test_strip_markdown_links(self):
@@ -31,7 +32,7 @@ class TestMain(unittest.TestCase):
             "Lorem ipsum Dolor voluptatem sequi nesciunt Accusantium iure reprehenderit."
         ]
         for i, case in enumerate(test_cases):
-            result = strip_markdown_links(case)
+            result = MDTEdit(case).strip_markdown_links()
             self.assertEquals(result, expected[i])
             
     def test_remove_regex_matches(self):
@@ -43,9 +44,10 @@ class TestMain(unittest.TestCase):
             "surrounding text"
         ]
         for i, case in enumerate(test_cases):
-            result = remove_regex_matches(text=case['text'], regex=case['regex'])
+            result = MDTEdit(case['text']).remove_regex_matches(regex=case['regex'])
             self.assertEquals(result, expected[i])
-    
+
+   
 if __name__ == "__main__":
     unittest.main()
         
