@@ -37,9 +37,9 @@ def run(args):
         with open(args.filename, 'r+') as f:
             file = f.read()
             f.seek(0)
-            if args.whitespaces:
+            if args.remove_whitespaces:
                 file = remove_extra_whitespaces(file)
-            if args.remove_links:
+            if args.remove_md_links:
                 file = strip_markdown_links(file)
             if args.remove_regex:
                 file = remove_regex_matches(file, args.remove_regex)
