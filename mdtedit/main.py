@@ -11,11 +11,78 @@ link_url = "http[s]?://[^\)]+"
 mdlink_regex = f"\[{link_name}]\({link_url}\)"
 mdlink_parts_regex = f"\[({link_name})]\(({link_url})\)"
 
+class ReUtil:
+    def __init__(self, verbose=False):
+        self.verbose : bool = verbose
+        self.color0 : List[int] = [255,0,0]
+        self.color1 : List[int] = [0,255,0]
+    
+    def search_and_replace(self, regex : str, replace : str, text : str) -> str:
+        """Searches through text and replaces with string."""
+        if self.verbose:
+            search_text = re.sub(regex, lambda m: self.colored(self.color0, m.group()), self.text)
+            replace_text = re.sub(regex, self.colored(self.color1, replace), self.text)
+            print(search_text)
+            print(replace_text)
+        return re.sub(regex, replace, self.text)
+    
+    def search(self, regex: str, text : str) -> int:
+        """Returns the number of matches found in the text."""
+        count = len(re.findall(regex, text))
+        if self.verbose:
+            colored_search = re.sub(regex, lambda m: self.colored(self.color0, m.group()), text)
+            print(colored_search)
+        return count
+    
+    def remove(self, regex : str, text : str) -> str:
+        """Removes matches from a given text."""
+        if self.verbose:
+            print("Regex matches to be removed...")
+            colored_search = re.sub(f'({regex})', colored(255,0,0,r'\1'), self.text)
+            print(colored_search, '\n')
+        return re.sub(regex, '', text)
+            
+    def colored(self, values : List[int], text : str) -> str:
+        """Returns a colored version of the string."""
+        # return "\033[38;2;{};{};{}m{}\033[38;2;255;255;255m".format(r, g, b, text)
+        r, g, b = values[0], values[1], values[2]
+        return "\033[38;2;{};{};{}m{}\033[m".format(r, g, b, text)
+
 class MDTEdit:
     
-    def __init__(self, text="", verbose=False):
+    def __init__(self, text="", verbose=False, *args, **kwargs):
         self.text : str = text
         self.verbose : bool = verbose
+    
+    # Main function
+    def search_and_replace_text(self, regex : str, replace : str) -> str:
+        """Searches through regex and replaces"""
+        if self.verbose:
+            search_text = re.sub(regex, lambda m: colored(255,0,0,m.group()), self.text)
+            replace_text = re.sub(regex, colored(0,255,0,replace), self.text)
+            print(search_text)
+            print(replace_text)
+        new_text = re.sub(regex, replace, self.text)
+        return new_text
+    
+    # Main function
+    def remove_regex_matches(self, regex:str) -> str:
+        """Removes regex matches in the given text."""
+        if self.verbose:
+            print("Regex matches to be removed...")
+            colored_print = re.sub(f'({regex})', colored(255,0,0,r'\1'), self.text)
+            print(colored_print, '\n')
+        self.text = re.sub(regex, '', self.text)
+        return self.text
+    
+    # Custom function
+    def remove_extra_whitespaces(self) -> str:
+        """Removes redundant whitespaces (leading, trailing, and spaces before a period, comma or bracket)."""
+        if self.verbose:
+            print("Removing whitespaces...")
+        self.text = re.sub('[ ]+', ' ', self.text.strip())
+        self.text = re.sub('[ ]([,|.|\)])', r'\1', self.text)
+        return self.text
     
     # Custom/saved regex function
     def strip_markdown_links(self) -> str:
@@ -30,39 +97,12 @@ class MDTEdit:
         self.text = re.sub(mdlink_parts_regex, r'\1', self.text)
         return self.text
     
-    # Main function
-    def search_and_replace_text(self, regex : str, replace : str) -> str:
-        """Searches through regex and replaces"""
-        if self.verbose:
-            search_text = re.sub(regex, lambda m: colored(255,0,0,m.group()), self.text)
-            replace_text = re.sub(regex, colored(0,255,0,replace), self.text)
-            print(search_text)
-            print(replace_text)
-        new_text = re.sub(regex, replace, self.text)
-        return new_text
-    
-    # Custom function
-    def remove_extra_whitespaces(self) -> str:
-        """Removes redundant whitespaces (leading, trailing, and spaces before a period, comma or bracket)."""
-        if self.verbose:
-            print("Removing whitespaces...")
-        self.text = re.sub('[ ]+', ' ', self.text.strip())
-        self.text = re.sub('[ ]([,|.|\)])', r'\1', self.text)
-        return self.text
-    
-    # Main function
-    def remove_regex_matches(self, regex:str) -> str:
-        """Removes regex matches in the given text."""
-        if self.verbose:
-            print("Regex matches to be removed...")
-            colored_print = re.sub(f'({regex})', colored(255,0,0,r'\1'), self.text)
-            print(colored_print, '\n')
-        self.text = re.sub(regex, '', self.text)
-        return self.text
 
+####################
 # FILENAME FUNCTIONS
 
 def rename_files(old : List[str], new : List[str]) -> None: 
+    """Renames files."""
     if len(old) != len(new):
         raise Exception("The length of the new and filenames are not the same.")
     for i, old_path in enumerate(old):
@@ -97,6 +137,7 @@ def search_filenames(filepaths: List[str], search : str) -> None:
         print(colored_search)
     print(f"{count} matches found in {len(filepaths)} filename(s).")
 
+# Main functions
 def from_file(filename: str) -> MDTEdit:
     """Creates a MDT object by reading a file"""
     f = open(filename, 'r')
@@ -104,6 +145,7 @@ def from_file(filename: str) -> MDTEdit:
     f.close()
     return obj
 
+# CLI Function
 def isdir(fullpath: str) -> bool:
     """Returns true if is a file, and false if otherwise (a directory)."""
     try:
@@ -114,6 +156,7 @@ def isdir(fullpath: str) -> bool:
     except FileNotFoundError:
         print(f'{fullpath} does not exist.')
 
+# CLI Function
 def iterate_files(directory: str) -> List:
     """Iterates over the files in the given directory and returns a list of found files."""
     files = []
@@ -127,7 +170,7 @@ def iterate_files(directory: str) -> List:
     return files
 
 
-def run(args):
+def run(args) -> None:
     if args.textfiles:
         text_files = [args.textfiles] if not isdir(args.textfiles) else iterate_files(args.textfiles)
         
@@ -163,7 +206,7 @@ def run(args):
                 rename_files(filepaths, new_filepaths)
             
 
-def main():
+def main() -> None:
     """Process command line arguments and execute the given command.""" 
     parser = argparse.ArgumentParser(description="Markdown-Text editor command line utility.")
     
