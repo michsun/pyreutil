@@ -4,43 +4,49 @@ import os
 
 from typing import List
 
-from .utils import colored
-
-link_name = "[\[]?[^\[^\]]+[\]]?"
-link_url = "http[s]?://[^\)]+"
-mdlink_regex = f"\[{link_name}]\({link_url}\)"
-mdlink_parts_regex = f"\[({link_name})]\(({link_url})\)"
+from .utils import colored, mutually_exclusive
 
 class ReUtil:
-    def __init__(self, verbose=False):
+    
+    def __init__(self, verbose : bool = False):
         self.verbose : bool = verbose
-        self.color0 : List[int] = [255,0,0]
-        self.color1 : List[int] = [0,255,0]
+        self.color_search : List[int] = [255,0,0]
+        self.color_replace : List[int] = [0,255,0]
     
-    def search_and_replace(self, regex : str, replace : str, text : str) -> str:
+    @mutually_exclusive('replace', 'group')
+    def search_and_replace(self, regex : str, text : str, replace : str = None, group : int = 0) -> tuple:
         """Searches through text and replaces with string."""
+        search_text = ""
+        replace_text = ""
         if self.verbose:
-            search_text = re.sub(regex, lambda m: self.colored(self.color0, m.group()), self.text)
-            replace_text = re.sub(regex, self.colored(self.color1, replace), self.text)
-            print(search_text)
-            print(replace_text)
-        return re.sub(regex, replace, self.text)
+            search_text = re.sub(regex, lambda m: self.colored(self.color_search, m.group()), text)
+            if replace is None:
+                replace_text = re.sub(regex, lambda m: self.colored(self.color_replace, m.group(group)), text)
+            else:
+                replace_text = re.sub(regex, self.colored(self.color_replace, replace), text)
+        if replace is None:
+            return re.sub(regex, lambda m: m.group(group), text), search_text, replace_text
+        return re.sub(regex, replace, text), search_text, replace_text
     
-    def search(self, regex: str, text : str) -> int:
+    def search(self, regex: str, text : str) -> tuple:
         """Returns the number of matches found in the text."""
         count = len(re.findall(regex, text))
+        colored_search = ""
         if self.verbose:
-            colored_search = re.sub(regex, lambda m: self.colored(self.color0, m.group()), text)
-            print(colored_search)
-        return count
+            colored_search = re.sub(regex, lambda m: self.colored(self.color_search, m.group()), text)
+        return count, colored_search
     
-    def remove(self, regex : str, text : str) -> str:
+    def remove(self, regex : str, text : str) -> tuple:
         """Removes matches from a given text."""
+        colored_search = ""
         if self.verbose:
-            print("Regex matches to be removed...")
-            colored_search = re.sub(f'({regex})', colored(255,0,0,r'\1'), self.text)
-            print(colored_search, '\n')
-        return re.sub(regex, '', text)
+            colored_search = re.sub(f'({regex})', colored(255,0,0,r'\1'), text)
+        return re.sub(regex, '', text), colored_search
+    
+    def save_changes(self, mode : str) -> None:
+        modes = ['inplace', 'copy']
+        if mode not in modes:
+            raise Exception("Error: The mode {} is not valid. Input 'inplace' or 'copy'.")
             
     def colored(self, values : List[int], text : str) -> str:
         """Returns a colored version of the string."""
@@ -48,102 +54,180 @@ class ReUtil:
         r, g, b = values[0], values[1], values[2]
         return "\033[38;2;{};{};{}m{}\033[m".format(r, g, b, text)
 
-class MDTEdit:
+
+class Text(ReUtil):
     
-    def __init__(self, text="", verbose=False, *args, **kwargs):
-        self.text : str = text
-        self.verbose : bool = verbose
+    @mutually_exclusive('text', 'filenames')
+    def __init__(self, text : List[str]=[], filenames : List[str] = [], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.original_filenames = filenames
+        self.original_text = text
+        self.text = text
+        if len(filenames) > 0:
+            self.original_filenames = iterate_files(filenames) if isdir(filenames) else [ filenames ]
+            for filepath in self.original_filenames:
+                with open(filepath, 'r') as f:
+                    self.original_text.append(f.read())
+            self.text = self.original_text
     
-    # Main function
-    def search_and_replace_text(self, regex : str, replace : str) -> str:
-        """Searches through regex and replaces"""
-        if self.verbose:
-            search_text = re.sub(regex, lambda m: colored(255,0,0,m.group()), self.text)
-            replace_text = re.sub(regex, colored(0,255,0,replace), self.text)
-            print(search_text)
-            print(replace_text)
-        new_text = re.sub(regex, replace, self.text)
-        return new_text
-    
-    # Main function
-    def remove_regex_matches(self, regex:str) -> str:
-        """Removes regex matches in the given text."""
-        if self.verbose:
-            print("Regex matches to be removed...")
-            colored_print = re.sub(f'({regex})', colored(255,0,0,r'\1'), self.text)
-            print(colored_print, '\n')
-        self.text = re.sub(regex, '', self.text)
+    def search_and_replace(self, regex : str, replace : str) -> List[str]:
+        new_text = []
+        for txt in self.text:
+            new, colored_search, colored_replace = super().search_and_replace(regex, txt, replace=replace)
+            if self.verbose:
+                print(colored_search)
+                print(colored_replace)
+            new_text.append(new)
+        self.text = new_text
         return self.text
     
-    # Custom function
+    def search(self, regex : str) -> int:
+        count = 0
+        for txt in self.text:
+            searches, colored_search = super().search(regex, txt)
+            if self.verbose:
+                print(colored_search)
+            count += searches
+        print("{} matches found".format(count))
+        return count
+    
+    def remove(self, regex : str) -> List[str]:
+        """Returns a list of texts with the regex matches removed"""
+        new_text = []
+        if self.verbose:
+            print("Remving the following searches...")
+        for i, txt in enumerate(self.text):
+            new, colored_search = super().remove(regex, txt)
+            if self.verbose:
+                if self.original_filenames:
+                    print("Searches to be removed in '{}'...".format(self.original_filenames[i]))
+                print(colored_search,'\n')
+            new_text.append(new)
+        self.text = new_text
+        return self.text
+    
+    def save_changes(self, mode : str = 'inplace') -> None:
+        """Saves content changes to original files, or to a copy of the file(s)."""
+        super().save_changes(mode)
+        if len(self.original_filenames) != len(self.text):
+            raise Exception("Error! Length of original and modified files are not the same.")
+        # TODO: Saves change to the original files
+        if mode == 'inplace':
+            for i in range(0, len(self.original_text)):
+                with open(self.original_filenames[i], 'w') as f:
+                    f.write(self.text[i])
+        # TODO: Copys text to new files
+        if mode == 'copy':
+            pass
+    
+    # CUSTOM TEXT FUNCTIONS
+    
+    # TODO: Method of counting whitespaces.
     def remove_extra_whitespaces(self) -> str:
         """Removes redundant whitespaces (leading, trailing, and spaces before a period, comma or bracket)."""
         if self.verbose:
             print("Removing whitespaces...")
-        self.text = re.sub('[ ]+', ' ', self.text.strip())
-        self.text = re.sub('[ ]([,|.|\)])', r'\1', self.text)
+        for txt in self.text:
+            txt = re.sub('[ ]+', ' ', txt.strip())
+            txt = re.sub('[ ]([,|.|\)])', r'\1', txt)
         return self.text
     
-    # Custom/saved regex function
-    def strip_markdown_links(self) -> str:
+    def strip_markdown_links(self) -> List[str]:
         """Returns the text with stripped markdown links replaced with the link name."""
+        link_name = "[\[]?[^\[^\]]+[\]]?"
+        link_url = "http[s]?://[^\)]+"
+        mdlink_regex = f"\[{link_name}]\({link_url}\)"
+        mdlink_parts_regex = f"\[({link_name})]\(({link_url})\)"
+        
+        new_text = []
         if self.verbose:
-            search_text = re.sub(mdlink_parts_regex, lambda m: colored(255,0,0,m.group()), self.text)
-            replace_text = re.sub(mdlink_parts_regex, lambda m: colored(0,255,0,m.group(1)), self.text)
-            print("Finding markdown links in text...")
-            print(search_text, '\n')
-            print(" {} link(s) found".format(len(re.findall(mdlink_parts_regex, self.text))))
-            print(replace_text, '\n')
-        self.text = re.sub(mdlink_parts_regex, r'\1', self.text)
+            print("Finding and stripping markdown links in text...")
+        for i, txt in enumerate(self.text):
+            new, colored_search, colored_replace = super().search_and_replace(mdlink_parts_regex, txt, group=1)
+            count, _ = ReUtil().search(mdlink_regex, txt)
+            if self.verbose:
+                if self.original_filenames:
+                    print("Searching '{}'...".format(self.original_filenames[i]))
+                print(colored_search)
+                print("  {} link(s) found".format(count))
+                print(colored_replace,'\n')
+            new_text.append(new)
+        self.text = new_text
         return self.text
     
 
-####################
-# FILENAME FUNCTIONS
-
-def rename_files(old : List[str], new : List[str]) -> None: 
-    """Renames files."""
-    if len(old) != len(new):
-        raise Exception("The length of the new and filenames are not the same.")
-    for i, old_path in enumerate(old):
-        os.rename(old_path, new[i])
-
-def search_and_replace_filenames(filepaths: List[str], search : str, replace : str) -> List[str]:
-    """Substitutes regex searches with a string replacement, returning a list of new filenames."""
-    new_names = []
-    for fullpath in filepaths:
-        head, tail = os.path.split(fullpath)
-        tail, ext = os.path.splitext(tail)
-        # TODO: verbosity control
-        colored_search = re.sub(search, lambda m: colored(255,0,0,m.group()), tail) + ext
-        colored_replace = re.sub(search, colored(0,255,0,replace), tail) + ext
-        if colored_search == colored_replace:
-            print(colored_search)
-        else:
-            print("{} ==> {}".format(colored_search, colored_replace))
+class Pathnames(ReUtil):
+    
+    # TODO: rename 'pathnames' to 'filepaths'
+    @mutually_exclusive('path', 'pathnames')
+    def __init__(self, path : str = None, pathnames : List[str] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.original_pathnames = pathnames
+        self.pathnames = pathnames
+        if path is not None:
+            self.original_pathnames = iterate_files(path) if isdir(path) else [path]
+            self.pathnames = self.original_pathnames
         
-        tail = re.sub(search, replace, tail)
-        new_names.append(os.path.join(head, tail+ext))
-    return new_names
-
-def search_filenames(filepaths: List[str], search : str) -> None:
-    """Substitutes..."""
-    count = 0
-    for fullpath in filepaths:
-        head, tail = os.path.split(fullpath)
-        tail, ext = os.path.splitext(tail)
-        count += len(re.findall(search, tail))
-        colored_search = re.sub(search, lambda m: colored(255,0,0,m.group()), tail) + ext
-        print(colored_search)
-    print(f"{count} matches found in {len(filepaths)} filename(s).")
-
-# Main functions
-def from_file(filename: str) -> MDTEdit:
-    """Creates a MDT object by reading a file"""
-    f = open(filename, 'r')
-    obj = MDTEdit(f.read())
-    f.close()
-    return obj
+    def search_and_replace(self, regex : str, replace : str) -> List[str]:
+        """Substitutes regex searches with a string replacement, returning a list of new pathnames."""
+        new_names = []
+        for path in self.pathnames:
+            head, tail = os.path.split(path)
+            tail, ext = os.path.splitext(tail)
+            tail, colored_search, colored_replace = super().search_and_replace(regex, tail, replace=replace)
+            colored_search = os.path.join(head, colored_search+ext)
+            colored_replace = os.path.join(head, colored_replace+ext)
+            if self.verbose:
+                if colored_search == colored_replace:
+                    print(colored_search)
+                else:
+                    print("{} ==> {}".format(colored_search, colored_replace))
+            new_names.append(os.path.join(head, tail+ext))
+        self.pathnames = new_names
+        return self.pathnames
+    
+    def search(self, regex : str) -> int:
+        """Returns number of regex matches in the names."""
+        count = 0
+        for path in self.pathnames:
+            head, tail = os.path.split(path)
+            tail, ext = os.path.splitext(tail)
+            matches, colored_search = super().search(regex, tail)
+            if self.verbose:
+                print(os.path.join(head,colored_search+ext))
+            count += len(matches)
+        print("{} matches found in {} filename(s).".format(count, len(self.pathnames)))
+        return count
+    
+    def remove(self, regex : str) -> List[str]:
+        """Returns a list of new pathnames with the regex search removed."""
+        new_names = []
+        for path in self.pathnames:
+            head, tail = os.path.split(path)
+            tail, ext = os.path.splitext(tail)
+            tail, colored_search = super().remove(regex, tail)
+            if self.verbose:
+                print("To be removed...")
+                print(os.path.join(head, colored_search+ext))
+            new_names.append(os.path.join(head,tail+ext))
+        self.pathnames = new_names
+        return self.pathnames
+    
+    def save_changes(self, mode : str = 'inplace') -> None:
+        """Saves the filename changes inplace (renames input paths), or creates a copy."""
+        super().save_changes(mode)
+        if len(self.original_pathnames) != len(self.pathnames):
+            raise Exception("Error! Length of original and modified filenames are not the same.")
+        if self.verbose:
+            print("Saving changes inplace...")
+        if mode is 'inplace':
+            for i in range(0, len(self.original_pathnames)):
+                os.rename(self.original_pathnames[i], self.pathnames[i])
+        
+        if mode is 'copy':
+            # TODO: implement copy method
+            pass
+    
 
 # CLI Function
 def isdir(fullpath: str) -> bool:
@@ -172,45 +256,47 @@ def iterate_files(directory: str) -> List:
 
 def run(args) -> None:
     if args.textfiles:
-        text_files = [args.textfiles] if not isdir(args.textfiles) else iterate_files(args.textfiles)
-        
-        for filename in text_files:
-            file = from_file(filename)
-            file.verbose = True
-            
-            if args.silence:
-                file.verbose = False
-                if not args.inplace:
-                    print("Warning: Changes have not been saved to file. Use '-i' to save changes inplace.")
-            if args.remove_md_links:
-                file.strip_markdown_links()
-            if args.remove_whitespaces:
-                file.remove_extra_whitespaces()
-            if args.remove:
-                file.remove_regex_matches(args.remove_regex)
-            if args.inplace:
-                with open(filename, 'w') as f:
-                    f.write(file.text)
-    if args.filenames:
-        filepaths = [args.filenames] if not isdir(args.filenames) else iterate_files(args.filenames)
-            
+        texts = Text(filenames=args.textfiles, verbose=not args.silence)
+        # Built-in regex functions
+        if args.remove_md_links:
+            texts.strip_markdown_links()
+        if args.remove_whitespaces:
+            texts.remove_extra_whitespaces()
+        # Core functions
+        if args.remove:
+            texts.remove(args.remove)
         if args.replace and not args.search:
-            raise Exception("Unable to perform replacement as no search input has been given.")
+            raise Exception("No search input has been given to replace.")
         if args.search and not args.replace:
-            search_filenames(filepaths, args.search)
+            texts.search(args.search)
         if args.search and args.replace:
-            new_filepaths = search_and_replace_filenames(filepaths, args.search, args.replace)
+            texts.search_and_replace(args.search, args.replace)
+        if not args.inplace:
+            print("Warning: Changes have not been saved. Use -i or --inplace to save changes permanently.")
+        if args.inplace:
+            texts.save_changes()
+    
+    if args.filenames:
+        paths = Pathnames(path=args.filenames, verbose=not args.silence)
+        if args.remove:
+            paths.remove(args.remove)
+        if args.replace and not args.search:
+            raise Exception("No search input has been given to replace.")
+        if args.search and not args.replace:
+            paths.search(args.search)
+        if args.search and args.replace:
+            paths.search_and_replace(args.search, args.replace)
             if not args.inplace:
-                print("Warning : Changes have not been saved. Used -i or --inplace to save changes permanently.")
-            if args.inplace:
-                rename_files(filepaths, new_filepaths)
-            
+                print("Warning: Changes have not been saved. Use -i or --inplace to save changes permanently.")
+        if args.inplace:
+            paths.save_changes()
 
 def main() -> None:
     """Process command line arguments and execute the given command.""" 
     parser = argparse.ArgumentParser(description="Markdown-Text editor command line utility.")
     
     # Two Modes
+    # TODO: Modify to mutually exclusive arguments
     parser.add_argument('-f', '--filenames', help='modifying the filenames', type=str, required=False)
     parser.add_argument('-t', '--textfiles', help='filename or a directory to parse', type=str, required=False)
     
