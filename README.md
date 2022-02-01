@@ -1,5 +1,4 @@
-# Markdown-Text Edit
+# pyreutil
 
-A slim text preprocessor that applies changes to markdown and text files.
+**Pyreutil** is a command line utiliy to bulk edit plain text files or filenames using regex. 
 
-## Setup

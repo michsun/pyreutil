@@ -4,6 +4,7 @@ import os
 from typing import Callable, List
 
 # TODO: Decorator type hints????? 
+# TODO: Improve clarity when initialising objects
 def mutually_exclusive(keyword, *keywords):
     """Decorator raises a TypeError if input function arguments are not mutually exclusive."""
     keywords = (keyword,)+keywords
