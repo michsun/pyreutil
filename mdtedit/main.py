@@ -56,9 +56,9 @@ class Text(ReUtil):
     @mutually_exclusive('text', 'filenames')
     def __init__(self, text : List[str]=[], filenames : List[str] = [], *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.original_filenames = filenames
-        self.original_text = text
-        self.text = text
+        self.original_filenames : List[str] = filenames
+        self.original_text : List[str] = text
+        self.text : List[str] = text
         if len(filenames) > 0:
             self.original_filenames = iterate_files(filenames) if isdir(filenames) else [ filenames ]
             for filepath in self.original_filenames:
@@ -169,10 +169,10 @@ class Pathnames(ReUtil):
     
     # TODO: rename class
     @mutually_exclusive('path', 'pathnames')
-    def __init__(self, path : str = None, pathnames : List[str] = None, *args, **kwargs):
+    def __init__(self, path : str = "", pathnames : List[str] = [], *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.original_pathnames = pathnames
-        self.pathnames = pathnames
+        self.original_pathnames : List[str] = pathnames
+        self.pathnames : List[str] = pathnames
         if path is not None:
             self.original_pathnames = iterate_files(path) if isdir(path) else [path]
             self.pathnames = self.original_pathnames
