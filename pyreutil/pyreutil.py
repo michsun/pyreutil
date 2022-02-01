@@ -209,9 +209,9 @@ class Pathnames(ReUtil):
             # matches, colored_search = super().search(regex, tail)
             matches = super().search(regex, tail)
             if self.verbose:
-                colored_search = self.colored_replace(regex, tail)
+                colored_search = self.colored_search(regex, tail)
                 print(os.path.join(head,colored_search+ext))
-            count += len(matches)
+            count += matches
         if self.verbose:
             print("{} matches found in {} filename(s).".format(count, len(self.pathnames)))
         return count
