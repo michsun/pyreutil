@@ -1,6 +1,6 @@
 import unittest
 
-from mdtedit.main import *
+from pyreutil.pyreutil import *
 
 class TestReUtil(unittest.TestCase):
     
