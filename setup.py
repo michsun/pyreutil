@@ -19,6 +19,7 @@ setup(
         "License :: OSI Approved :: MIT License",
 		"Operating System :: OS Independent",
 	],
+    packages=['pyreutil'],
     install_requires=open('requirements.txt').read().splitlines(),
     entry_points= {
         'console_scripts': ['pyreutil = pyreutil.__main__:main']
