@@ -4,7 +4,7 @@ import os
 
 from typing import List
 
-from .utils import colored, mutually_exclusive
+from .utils import mutually_exclusive
 
 class ReUtil:
     
@@ -14,43 +14,39 @@ class ReUtil:
         self.color_replace : List[int] = [0,255,0]
     
     @mutually_exclusive('replace', 'group')
-    def search_and_replace(self, regex : str, text : str, replace : str = None, group : int = 0) -> tuple:
+    def search_and_replace(self, regex : str, text : str, replace : str = None, group : int = 0) -> str:
         """Searches through text and replaces with string."""
-        search_text = ""
-        replace_text = ""
-        if self.verbose:
-            search_text = re.sub(regex, lambda m: self.colored(self.color_search, m.group()), text)
-            if replace is None:
-                replace_text = re.sub(regex, lambda m: self.colored(self.color_replace, m.group(group)), text)
-            else:
-                replace_text = re.sub(regex, self.colored(self.color_replace, replace), text)
         if replace is None:
-            return re.sub(regex, lambda m: m.group(group), text), search_text, replace_text
-        return re.sub(regex, replace, text), search_text, replace_text
+            return re.sub(regex, lambda m: m.group(group), text) 
+        return re.sub(regex, replace, text) 
     
-    def search(self, regex: str, text : str) -> tuple:
+    def search(self, regex: str, text : str) -> int:
         """Returns the number of matches found in the text."""
         count = len(re.findall(regex, text))
-        colored_search = ""
-        if self.verbose:
-            colored_search = re.sub(regex, lambda m: self.colored(self.color_search, m.group()), text)
-        return count, colored_search
+        return count 
     
-    def remove(self, regex : str, text : str) -> tuple:
+    def remove(self, regex : str, text : str) -> str:
         """Removes matches from a given text."""
-        colored_search = ""
-        if self.verbose:
-            colored_search = re.sub(f'({regex})', colored(255,0,0,r'\1'), text)
-        return re.sub(regex, '', text), colored_search
+        return re.sub(regex, '', text) 
     
     def save_changes(self, mode : str) -> None:
         modes = ['inplace', 'copy']
         if mode not in modes:
             raise Exception("Error: The mode {} is not valid. Input 'inplace' or 'copy'.")
+        
+    def colored_search(self, regex : str, text : str) -> str:
+        """Returns string with regex matches colored."""
+        return re.sub(regex, lambda m: self._colored(self.color_search, m.group()), text)
+    
+    @mutually_exclusive('replace', 'group')
+    def colored_replace(self, regex : str, text : str, replace : str = None, group : int = 0) -> str:
+        """Returns a string with the regex substitutes colored."""
+        if group > 0:
+            return re.sub(regex, lambda m: self._colored(self.color_replace, m.group(group)), text)
+        return re.sub(regex, self._colored(self.color_replace, replace), text)
             
-    def colored(self, values : List[int], text : str) -> str:
+    def _colored(self, values : List[int], text : str) -> str:
         """Returns a colored version of the string."""
-        # return "\033[38;2;{};{};{}m{}\033[38;2;255;255;255m".format(r, g, b, text)
         r, g, b = values[0], values[1], values[2]
         return "\033[38;2;{};{};{}m{}\033[m".format(r, g, b, text)
 
@@ -73,8 +69,10 @@ class Text(ReUtil):
     def search_and_replace(self, regex : str, replace : str) -> List[str]:
         new_text = []
         for txt in self.text:
-            new, colored_search, colored_replace = super().search_and_replace(regex, txt, replace=replace)
+            new = super().search_and_replace(regex, txt, replace=replace)
             if self.verbose:
+                colored_search = self.colored_search(regex, txt)
+                colored_replace = self.colored_replace(regex, txt, replace=replace)
                 print(colored_search)
                 print(colored_replace)
             new_text.append(new)
@@ -84,8 +82,9 @@ class Text(ReUtil):
     def search(self, regex : str) -> int:
         count = 0
         for txt in self.text:
-            searches, colored_search = super().search(regex, txt)
+            searches = super().search(regex, txt)
             if self.verbose:
+                colored_search = self.colored_search(regex, txt)
                 print(colored_search)
             count += searches
         print("{} matches found".format(count))
@@ -95,13 +94,19 @@ class Text(ReUtil):
         """Returns a list of texts with the regex matches removed"""
         new_text = []
         if self.verbose:
-            print("Remving the following searches...")
+            print("Removing searches...")
         for i, txt in enumerate(self.text):
-            new, colored_search = super().remove(regex, txt)
+            if self.verbose and self.original_filenames:
+                print("Searching for matches to remove in '{}'...".format(self.original_filenames[i]))
+            new = super().remove(regex, txt)
+            count = super().search(regex, txt)
             if self.verbose:
-                if self.original_filenames:
-                    print("Searches to be removed in '{}'...".format(self.original_filenames[i]))
-                print(colored_search,'\n')
+                if count == 0:
+                    print("No matches to '{}' were found.".format(regex))
+                else:
+                    colored_search = self.colored_search(regex, txt)
+                    print(colored_search)
+                    print("  {} matches to be removed were found".format(count))
             new_text.append(new)
         self.text = new_text
         return self.text
@@ -111,7 +116,6 @@ class Text(ReUtil):
         super().save_changes(mode)
         if len(self.original_filenames) != len(self.text):
             raise Exception("Error! Length of original and modified files are not the same.")
-        # TODO: Saves change to the original files
         if mode == 'inplace':
             for i in range(0, len(self.original_text)):
                 with open(self.original_filenames[i], 'w') as f:
@@ -122,7 +126,7 @@ class Text(ReUtil):
     
     # CUSTOM TEXT FUNCTIONS
     
-    # TODO: Method of counting whitespaces.
+    # TODO: Improve method removing whitespaces.
     def remove_extra_whitespaces(self) -> str:
         """Removes redundant whitespaces (leading, trailing, and spaces before a period, comma or bracket)."""
         if self.verbose:
@@ -141,24 +145,29 @@ class Text(ReUtil):
         
         new_text = []
         if self.verbose:
-            print("Finding and stripping markdown links in text...")
+            print("Stripping markdown links in text...")
         for i, txt in enumerate(self.text):
-            new, colored_search, colored_replace = super().search_and_replace(mdlink_parts_regex, txt, group=1)
-            count, _ = ReUtil().search(mdlink_regex, txt)
+            new = super().search_and_replace(mdlink_parts_regex, txt, group=1)
+            count = ReUtil().search(mdlink_regex, txt)
             if self.verbose:
                 if self.original_filenames:
                     print("Searching '{}'...".format(self.original_filenames[i]))
-                print(colored_search)
-                print("  {} link(s) found".format(count))
-                print(colored_replace,'\n')
+                if count == 0:
+                    print("No links were found.")
+                else:
+                    colored_search = self.colored_search(mdlink_parts_regex, txt)
+                    colored_replace = self.colored_replace(mdlink_parts_regex, txt, group=1)
+                    print(colored_search)
+                    print("  {} link(s) found".format(count))
+                    print(colored_replace,'\n')
             new_text.append(new)
         self.text = new_text
         return self.text
-    
+
 
 class Pathnames(ReUtil):
     
-    # TODO: rename 'pathnames' to 'filepaths'
+    # TODO: rename class
     @mutually_exclusive('path', 'pathnames')
     def __init__(self, path : str = None, pathnames : List[str] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -171,18 +180,23 @@ class Pathnames(ReUtil):
     def search_and_replace(self, regex : str, replace : str) -> List[str]:
         """Substitutes regex searches with a string replacement, returning a list of new pathnames."""
         new_names = []
+        files_changed = 0
         for path in self.pathnames:
             head, tail = os.path.split(path)
             tail, ext = os.path.splitext(tail)
-            tail, colored_search, colored_replace = super().search_and_replace(regex, tail, replace=replace)
-            colored_search = os.path.join(head, colored_search+ext)
-            colored_replace = os.path.join(head, colored_replace+ext)
+            new_tail = super().search_and_replace(regex, tail, replace=replace)
+            if new_tail != tail:
+                files_changed += 1
+            colored_search = os.path.join(head, self.colored_search(regex,tail)+ext)
+            colored_replace = os.path.join(head, self.colored_replace(regex,tail,replace=replace)+ext)
             if self.verbose:
                 if colored_search == colored_replace:
                     print(colored_search)
                 else:
                     print("{} ==> {}".format(colored_search, colored_replace))
-            new_names.append(os.path.join(head, tail+ext))
+            new_names.append(os.path.join(head, new_tail+ext))
+        if self.verbose:
+            print("  {}/{} filenames changed.".format(files_changed, len(self.pathnames)))
         self.pathnames = new_names
         return self.pathnames
     
@@ -192,11 +206,14 @@ class Pathnames(ReUtil):
         for path in self.pathnames:
             head, tail = os.path.split(path)
             tail, ext = os.path.splitext(tail)
-            matches, colored_search = super().search(regex, tail)
+            # matches, colored_search = super().search(regex, tail)
+            matches = super().search(regex, tail)
             if self.verbose:
+                colored_search = self.colored_replace(regex, tail)
                 print(os.path.join(head,colored_search+ext))
             count += len(matches)
-        print("{} matches found in {} filename(s).".format(count, len(self.pathnames)))
+        if self.verbose:
+            print("{} matches found in {} filename(s).".format(count, len(self.pathnames)))
         return count
     
     def remove(self, regex : str) -> List[str]:
@@ -205,9 +222,11 @@ class Pathnames(ReUtil):
         for path in self.pathnames:
             head, tail = os.path.split(path)
             tail, ext = os.path.splitext(tail)
-            tail, colored_search = super().remove(regex, tail)
+            # tail, colored_search = super().remove(regex, tail)
+            tail = super().remove(regex, tail)
             if self.verbose:
                 print("To be removed...")
+                colored_search = self.colored_search(regex, tail)
                 print(os.path.join(head, colored_search+ext))
             new_names.append(os.path.join(head,tail+ext))
         self.pathnames = new_names
@@ -229,7 +248,6 @@ class Pathnames(ReUtil):
             pass
     
 
-# CLI Function
 def isdir(fullpath: str) -> bool:
     """Returns true if is a file, and false if otherwise (a directory)."""
     try:
@@ -240,7 +258,7 @@ def isdir(fullpath: str) -> bool:
     except FileNotFoundError:
         print(f'{fullpath} does not exist.')
 
-# CLI Function
+
 def iterate_files(directory: str) -> List:
     """Iterates over the files in the given directory and returns a list of found files."""
     files = []
@@ -293,20 +311,24 @@ def run(args) -> None:
 
 def main() -> None:
     """Process command line arguments and execute the given command.""" 
-    parser = argparse.ArgumentParser(description="Markdown-Text editor command line utility.")
+    parser = argparse.ArgumentParser(description="Text and filenames regex command line utility.")
     
     # Two Modes
-    # TODO: Modify to mutually exclusive arguments
-    parser.add_argument('-f', '--filenames', help='modifying the filenames', type=str, required=False)
-    parser.add_argument('-t', '--textfiles', help='filename or a directory to parse', type=str, required=False)
-    
+    core = parser.add_mutually_exclusive_group()
+    core.add_argument('-t', '--textfiles', help='text source', type=str, required=False)
+    core.add_argument('-f', '--filenames', help='filenames source', type=str, required=False)
+    # Global commands
     parser.add_argument('-i', '--inplace', help='save changes to the existing file', action='store_true', required=False)
-    parser.add_argument('-l', '--remove-md-links', help='removes markdown links and replaces it with the link name', action='store_true', required=False)
     parser.add_argument('-r', '--replace', help='string to replace searches with. Must be used with -s --search', type=str, required=False)
     parser.add_argument('-rm', '--remove', help='removes custom perl regex matches from the file', type=str, required=False)
     parser.add_argument('-s', '--search', help='regex string to search for based on the given input', type=str, required=False)
     parser.add_argument('-si', '--silence', help='silences the output', action='store_true', required=False)
+    # Exclusive to modifying contents
+    parser.add_argument('-l', '--remove-md-links', help='removes markdown links and replaces it with the link name', action='store_true', required=False)
     parser.add_argument('-w', '--remove-whitespaces', help='removes redundant whitespaces (leading, trailing, and spaces before a period or comma)', action='store_true', required=False)
+    
+    for g in parser._action_groups:
+        g._group_actions.sort(key=lambda x:x.dest)
     
     args = parser.parse_args()
     run(args)
