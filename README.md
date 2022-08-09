@@ -96,7 +96,7 @@ To search and replace with a string, you can use the following command
 $ pyreutil -f examples/swift -s '-' -r '_' -i
 ```
 
-![Basic search and replace example](media/search-and-replace-basic-example1.png)
+![Basic search and replace example](https://raw.githubusercontent.com/michsun/pyreutil/master/media/search-and-replace-basic-example1.png)
 
 - **Search and replace - group**
 
@@ -105,7 +105,7 @@ To search and replace with a regex group, you can use the following command:
 $ pyreutil -t examples/markdown/game-theory-wiki.md -s "\[([\[]?[^\[^\]]+[\]]?)]\((http[s]?://[^\)]+)\)" -g=1
 ```
 
-![Search and replace with regex groups](media/search-and-replace-group-example1.png)
+![Search and replace with regex groups](https://raw.githubusercontent.com/michsun/pyreutil/master/media/search-and-replace-group-example1.png)
 
 Alternatively, you can use group capture syntax e.g. `-r='\g<1>'` or `-r=\1`, both of which function the same as `-g=1`.
 
@@ -117,7 +117,7 @@ You can also use lambda function syntax to make regex substitutes with the `-l` 
 $ pyreutil -f examples/swift -s "(_)([a-z])" -l "x.group(2).upper()"
  ```
 
-![Search and replace - lambda function example](media/search-and-replace-lambda-example1.png)
+![Search and replace - lambda function example](https://raw.githubusercontent.com/michsun/pyreutil/master/media/search-and-replace-lambda-example1.png)
 
 Your code should work in the following function: `re.sub(search_str,  lambda x : <lambda_code> , text)`. 
 
@@ -133,4 +133,4 @@ An example using `-d` and `-c` is shown below.
 $ pyreutil -f examples/swift -s "(_)([a-z])" -l "x.group(2).upper()" -dc
  ```
 
-![Search and replace filename with -c and -d example](media/saving-changes-example1.png)
+![Search and replace filename with -c and -d example](https://raw.githubusercontent.com/michsun/pyreutil/master/media/saving-changes-example1.png)
