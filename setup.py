@@ -8,6 +8,7 @@ setup(
     version=open('VERSION','r').read().strip(),
     author='Michelle Sun',
     author_email='michelle.sun032@icloud.com',
+    url='https://github.com/michsun/pyreutil',
     description='Pyreutil is a command line utility to bulk edit plain text files or filenames using regex.',
     long_description=long_description,
     long_description_content_type="text/markdown",
